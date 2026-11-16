@@ -43,8 +43,11 @@ jobs:
           uv venv --python 3.12
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           uv pip install "$VLLM_PRECOMPILED_WHEEL_LOCATION" --torch-backend cpu
+          mkdir -p "$RUNNER_TEMP/vllm-cpu-native"
+          cp .venv/lib/python3.12/site-packages/vllm/*.so "$RUNNER_TEMP/vllm-cpu-native/"
           uv pip install -r requirements/build/cpu.txt -r requirements/cpu.txt pandas pytest soundfile pre-commit --torch-backend cpu --index-strategy unsafe-best-match
           uv pip install -e . --no-build-isolation --no-deps
+          cp "$RUNNER_TEMP/vllm-cpu-native/"*.so vllm/
           .venv/bin/python -m pre_commit install
           cpu_iomp_path=$(find "$GITHUB_WORKSPACE/.venv" -name libiomp5.so -print -quit)
           if [ -n "$cpu_iomp_path" ]; then
@@ -53,6 +56,7 @@ jobs:
       - name: Record native runtime
         run: |
           .venv/bin/python -c 'import torch, vllm; from vllm.platforms import current_platform; print(vllm.__version__, torch.__version__, current_platform); assert current_platform.is_cpu()'
+          .venv/bin/python -c 'import torch; import vllm._custom_ops; assert hasattr(torch.ops._C, "init_cpu_memory_env"); print("CPU native initialization operator is available")'
           lscpu
       - name: Reproduce on the base source including the real server
         run: |
