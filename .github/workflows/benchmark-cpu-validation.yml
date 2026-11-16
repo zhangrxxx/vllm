@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   linux-cpu:
     if: github.repository == '18391202266/vllm'
@@ -19,7 +23,7 @@ jobs:
       VLLM_PRECOMPILED_WHEEL_VARIANT: cpu
       VLLM_PRECOMPILED_WHEEL_LOCATION: https://github.com/vllm-project/vllm/releases/download/v0.33.0rc3/vllm-0.33.0%2Bcpu-cp38-abi3-manylinux_2_39_x86_64.whl
       VLLM_CPU_KVCACHE_SPACE: '1'
-      VLLM_CPU_OMP_THREADS_BIND: no_bind
+      VLLM_CPU_OMP_THREADS_BIND: nobind
       OMP_NUM_THREADS: '2'
       VLLM_NO_USAGE_STATS: '1'
       HF_HUB_DISABLE_TELEMETRY: '1'
