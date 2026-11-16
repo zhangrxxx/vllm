@@ -1,0 +1,68 @@
+name: Benchmark metric headers CPU validation
+
+on:
+  push:
+    branches: [validate/benchmark-metrics-headers]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-cpu:
+    if: github.repository == '18391202266/vllm'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      VLLM_TARGET_DEVICE: cpu
+      VLLM_USE_PRECOMPILED: '1'
+      VLLM_PRECOMPILED_WHEEL_VARIANT: cpu
+      VLLM_PRECOMPILED_WHEEL_LOCATION: https://github.com/vllm-project/vllm/releases/download/v0.33.0rc3/vllm-0.33.0%2Bcpu-cp38-abi3-manylinux_2_39_x86_64.whl
+      VLLM_CPU_KVCACHE_SPACE: '1'
+      VLLM_CPU_OMP_THREADS_BIND: no_bind
+      OMP_NUM_THREADS: '2'
+      VLLM_NO_USAGE_STATS: '1'
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          python-version: '3.12'
+          enable-cache: false
+      - name: Prepare Linux CPU environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libnuma1
+          uv venv --python 3.12
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          uv pip install "$VLLM_PRECOMPILED_WHEEL_LOCATION" --torch-backend cpu
+          uv pip install -r requirements/build/cpu.txt -r requirements/cpu.txt pandas pytest soundfile pre-commit --torch-backend cpu --index-strategy unsafe-best-match
+          uv pip install -e . --no-build-isolation --no-deps
+          .venv/bin/python -m pre_commit install
+          cpu_iomp_path=$(find "$GITHUB_WORKSPACE/.venv" -name libiomp5.so -print -quit)
+          if [ -n "$cpu_iomp_path" ]; then
+            printf 'LD_PRELOAD=%s\n' "$cpu_iomp_path" >> "$GITHUB_ENV"
+          fi
+      - name: Record native runtime
+        run: |
+          .venv/bin/python -c 'import torch, vllm; from vllm.platforms import current_platform; print(vllm.__version__, torch.__version__, current_platform); assert current_platform.is_cpu()'
+          lscpu
+      - name: Reproduce on the base source including the real server
+        run: |
+          cp vllm/benchmarks/serve.py "$RUNNER_TEMP/serve.fixed.py"
+          trap 'cp "$RUNNER_TEMP/serve.fixed.py" vllm/benchmarks/serve.py' EXIT
+          git show 0067b98f7e62c774ea4acd300eea743aed832aaf:vllm/benchmarks/serve.py > vllm/benchmarks/serve.py
+          set +e
+          .venv/bin/python -m pytest --confcutdir=tests/benchmarks tests/benchmarks/test_serve_headers.py -q --tb=short 2>&1 | tee before-linux.log
+          cpu_base_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$cpu_base_status" -ne 1 ] || ! grep -q "KeyError: 'spec_decode_accepted_tokens'" before-linux.log; then
+            exit 1
+          fi
+      - name: Verify patched HTTP and real-server paths
+        run: |
+          .venv/bin/python -m pytest --confcutdir=tests/benchmarks tests/benchmarks/test_serve_headers.py tests/benchmarks/test_skip_tokenizer_init.py tests/benchmarks/test_endpoint_request_func_timing.py tests/benchmarks/test_responses_request_func.py -q --tb=short 2>&1 | tee after-linux.log
+
