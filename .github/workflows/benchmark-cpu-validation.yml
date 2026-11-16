@@ -58,6 +58,7 @@ jobs:
         run: |
           cp vllm/benchmarks/serve.py "$RUNNER_TEMP/serve.fixed.py"
           trap 'cp "$RUNNER_TEMP/serve.fixed.py" vllm/benchmarks/serve.py' EXIT
+          git fetch --no-tags --depth=1 origin 0067b98f7e62c774ea4acd300eea743aed832aaf
           git show 0067b98f7e62c774ea4acd300eea743aed832aaf:vllm/benchmarks/serve.py > vllm/benchmarks/serve.py
           set +e
           .venv/bin/python -m pytest --confcutdir=tests/benchmarks tests/benchmarks/test_serve_headers.py -q --tb=short 2>&1 | tee before-linux.log
