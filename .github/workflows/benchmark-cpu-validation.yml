@@ -62,13 +62,13 @@ jobs:
         run: |
           cp vllm/benchmarks/serve.py "$RUNNER_TEMP/serve.fixed.py"
           trap 'cp "$RUNNER_TEMP/serve.fixed.py" vllm/benchmarks/serve.py' EXIT
-          git fetch --no-tags --depth=1 origin 5cda5d492f6cd3b6429613ec4c844105d36aaf84
-          git show 5cda5d492f6cd3b6429613ec4c844105d36aaf84:vllm/benchmarks/serve.py > vllm/benchmarks/serve.py
+          git fetch --no-tags --depth=1 origin f5ce8887a2d57d615f50fd08a16edbf7a87961c2
+          git show f5ce8887a2d57d615f50fd08a16edbf7a87961c2:vllm/benchmarks/serve.py > vllm/benchmarks/serve.py
           set +e
-          .venv/bin/python -m pytest --confcutdir=tests/benchmarks tests/benchmarks/test_serve_headers.py -k tokenizer -q --tb=short 2>&1 | tee before-linux.log
+          .venv/bin/python -m pytest --confcutdir=tests/benchmarks tests/benchmarks/test_serve_headers.py -k env_auth -q --tb=short 2>&1 | tee before-linux.log
           cpu_base_status=${PIPESTATUS[0]}
           set -e
-          if [ "$cpu_base_status" -ne 1 ] || ! grep -q "unexpected keyword argument 'headers'" before-linux.log; then
+          if [ "$cpu_base_status" -ne 1 ] || ! grep -q "KeyError: 'spec_decode_accepted_tokens'" before-linux.log; then
             exit 1
           fi
       - name: Verify patched HTTP and real-server paths
