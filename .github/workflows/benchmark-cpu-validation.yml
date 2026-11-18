@@ -14,7 +14,7 @@ defaults:
 
 jobs:
   linux-cpu:
-    if: github.repository == '18391202266/vllm'
+    if: github.repository == 'zhangrxxx/vllm'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
